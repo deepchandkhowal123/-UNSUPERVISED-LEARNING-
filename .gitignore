@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Deployment and local configuration
+.vercel/
+.env
+.env.*
+!.env.example
+
+# Database & generated artifacts
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+reports/
+exports/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
