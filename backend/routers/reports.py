@@ -1,11 +1,12 @@
-"""Report generation: JSON + CSV exports saved to disk."""
+"""Report generation: JSON reports in the database and CSV exports."""
 import json
 import csv
 import uuid
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import FileResponse
-from ..config import REPORTS_DIR, EXPORTS_DIR
-from ..models import ReportRequest, User
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import FileResponse, Response
+from ..config import EXPORTS_DIR
+from ..models import ReportRequest, User, now
 from ..auth import get_current_user, require_permission
 from ..audit import log
 from ..services import graph_engine as ge
@@ -33,35 +34,44 @@ def generate(body: ReportRequest, user: User = Depends(require_permission("repor
                                         "communities": ge.communities()[:10]}
     if "anomalies" in body.sections:
         payload["sections"]["anomalies"] = ml.detect_anomalies("isolation_forest", 30)
-    path = REPORTS_DIR / f"{rid}.json"
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(payload, f, indent=2, ensure_ascii=False)
+    serialized = json.dumps(jsonable_encoder(payload), indent=2, ensure_ascii=False)
+    created_at = now()
+    with cursor() as c:
+        c.execute(
+            "INSERT INTO reports (id,title,generated_by,payload,created_at) VALUES (?,?,?,?,?)",
+            (rid, body.title, user.username, serialized, created_at),
+        )
     log(user, "report.generate", rid, body.title)
-    return {"id": rid, "path": str(path), "sections": list(payload["sections"].keys())}
+    return {"id": rid, "path": f"/api/reports/{rid}/download",
+            "sections": list(payload["sections"].keys())}
 
 
 @router.get("/{rid}/download")
 def download(rid: str, user: User = Depends(get_current_user)):
-    path = REPORTS_DIR / f"{rid}.json"
-    if not path.exists():
+    with cursor() as c:
+        c.execute("SELECT payload FROM reports WHERE id = ?", (rid,))
+        row = c.fetchone()
+    if not row:
         raise HTTPException(404, "Report not found")
-    return FileResponse(str(path), media_type="application/json",
-                        filename=f"{rid}.json")
+    return Response(
+        content=row["payload"],
+        media_type="application/json",
+        headers={"Content-Disposition": f'attachment; filename="{rid}.json"'},
+    )
 
 
 @router.get("")
 def list_reports(user: User = Depends(get_current_user)):
-    items = []
-    for p in sorted(REPORTS_DIR.glob("*.json"), key=lambda x: x.stat().st_mtime, reverse=True):
-        try:
-            with open(p, encoding="utf-8") as f:
-                d = json.load(f)
-            items.append({"id": d.get("id"), "title": d.get("title"),
-                          "generated_by": d.get("generated_by"),
-                          "size": p.stat().st_size,
-                          "modified": p.stat().st_mtime})
-        except Exception:
-            continue
+    with cursor() as c:
+        c.execute(
+            "SELECT id,title,generated_by,payload,created_at "
+            "FROM reports ORDER BY created_at DESC"
+        )
+        rows = c.fetchall()
+    items = [{"id": row["id"], "title": row["title"],
+              "generated_by": row["generated_by"],
+              "size": len(row["payload"].encode("utf-8")),
+              "modified": row["created_at"]} for row in rows]
     return {"items": items}
 
 

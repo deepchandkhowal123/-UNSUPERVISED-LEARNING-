@@ -6,7 +6,14 @@ BASE_DIR = Path(__file__).resolve().parent.parent  # networktrace/
 BACKEND_DIR = BASE_DIR / "backend"
 FRONTEND_DIR = BASE_DIR / "frontend"
 IS_VERCEL = os.environ.get("VERCEL") == "1"
-if IS_VERCEL:
+DATABASE_URL = os.environ.get("DATABASE_URL")
+if IS_VERCEL and not DATABASE_URL:
+    raise RuntimeError("DATABASE_URL is required for persistent Vercel deployments.")
+if DATABASE_URL:
+    DB_PATH = None
+    REPORTS_DIR = Path(os.environ.get("NT_DATA_DIR", "/tmp/networktrace")) / "reports"
+    EXPORTS_DIR = Path(os.environ.get("NT_DATA_DIR", "/tmp/networktrace")) / "exports"
+elif IS_VERCEL:
     DATA_DIR = Path(os.environ.get("NT_DATA_DIR", "/tmp/networktrace"))
     DB_PATH = DATA_DIR / "networktrace.db"
     REPORTS_DIR = DATA_DIR / "reports"
@@ -23,6 +30,8 @@ for d in (REPORTS_DIR, EXPORTS_DIR):
 APP_NAME = "NetworkTrace"
 APP_VERSION = "1.1.0"
 SECRET = os.environ.get("NT_SECRET", "networktrace-dev-secret")
+ADMIN_USERNAME = os.environ.get("NT_ADMIN_USERNAME", "admin")
+ADMIN_PASSWORD = os.environ.get("NT_ADMIN_PASSWORD")
 
 # CORS / static serving
 HOST = os.environ.get("NT_HOST", "127.0.0.1")

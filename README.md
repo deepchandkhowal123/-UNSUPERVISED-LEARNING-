@@ -97,15 +97,15 @@ python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
 
 Then open **http://127.0.0.1:8000** in your browser.
 
-### Vercel demo deployment
+### Vercel deployment
 
-The root `index.py` exposes the FastAPI app to Vercel. Deploy from this directory with:
+The root `index.py` exposes the FastAPI app to Vercel. Configure a persistent PostgreSQL database and set `DATABASE_URL`, `NT_ADMIN_USERNAME`, and a strong `NT_ADMIN_PASSWORD` in Vercel Project Settings before deploying. Production disables the public demo accounts and stores sessions and generated reports in PostgreSQL.
 
 ```bash
 vercel --prod
 ```
 
-Vercel uses `/tmp` for SQLite and generated report/export files. That storage is temporary and instance-local, so notes, cases, and other changes may reset after a cold start or instance replacement. This setup is suitable for a demo; use a managed persistent database before relying on it for production data.
+Local development continues to use SQLite and the built-in demo accounts. Vercel deployments require `DATABASE_URL` and `NT_ADMIN_PASSWORD`; generated CSV exports use temporary storage only while the download is being prepared.
 
 ---
 

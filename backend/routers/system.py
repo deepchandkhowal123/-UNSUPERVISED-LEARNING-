@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from ..database import cursor, db_size
 from ..auth import get_current_user, User, require_permission
 from ..audit import log
-from ..config import APP_NAME, APP_VERSION, DB_PATH
+from ..config import APP_NAME, APP_VERSION, DB_PATH, DATABASE_URL
 from ..models import SavedSearchCreate, now
 from ..services import data_generator as dg
 from ..services import graph_engine as ge
@@ -66,7 +66,12 @@ def stats(user: User = Depends(get_current_user)):
         type_counts = {r["type"]: r["n"] for r in c.fetchall()}
         c.execute("SELECT rel_type, COUNT(*) AS n FROM relationships GROUP BY rel_type")
         rel_type_counts = {r["rel_type"]: r["n"] for r in c.fetchall()}
-    db_bytes = DB_PATH.stat().st_size if DB_PATH.exists() else 0
+    if DATABASE_URL:
+        with cursor() as c:
+            c.execute("SELECT pg_database_size(current_database()) AS n")
+            db_bytes = c.fetchone()["n"]
+    else:
+        db_bytes = DB_PATH.stat().st_size if DB_PATH.exists() else 0
     cache_built_at = ge._CACHE.get("built_at") if hasattr(ge, "_CACHE") else None
     return {
         "entities": ents, "relationships": rels, "audit_entries": audit_entries,

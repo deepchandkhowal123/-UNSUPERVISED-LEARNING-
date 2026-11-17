@@ -1,7 +1,7 @@
 """Authentication endpoints."""
 from fastapi import APIRouter, Depends, HTTPException, Request
 from ..models import LoginRequest, Token
-from ..auth import authenticate, issue_token, revoke_token, get_current_user, DEMO_USERS, User, TOKENS
+from ..auth import authenticate, issue_token, revoke_token, get_current_user, token_expiration, DEMO_USERS, User
 from ..audit import log
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -41,16 +41,11 @@ def logout(request: Request, user: User = Depends(get_current_user)):
 @router.get("/me")
 def me(request: Request, user: User = Depends(get_current_user)):
     """Return the current user plus token expiry (ISO string)."""
-    expires_at = None
     token = _bearer_token(request)
-    if token:
-        rec = TOKENS.get(token)
-        if rec and rec.get("expires"):
-            expires_at = rec["expires"].isoformat() + "Z"
     return {
         "username": user.username,
         "role": user.role,
         "display_name": user.display_name,
         "permissions": user.permissions,
-        "expires_at": expires_at,
+        "expires_at": token_expiration(token) if token else None,
     }
